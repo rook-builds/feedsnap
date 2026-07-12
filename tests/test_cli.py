@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
 
@@ -89,4 +89,102 @@ def test_cli_since_invalid_exits_nonzero():
     runner = CliRunner()
     with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
         result = runner.invoke(main, ["https://example.com/feed", "--since", "notadate"])
+    assert result.exit_code == 1
+
+
+MOCK_FEED_2 = Feed(
+    title="Mock Feed 2",
+    url="https://example.com/feed2",
+    entries=[
+        FeedEntry(
+            title="Second Feed Entry",
+            url="https://example.com/mock2",
+            published="2026-07-12",
+            summary="Second feed summary.",
+        )
+    ],
+)
+
+SAMPLE_OPML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Test</title></head>
+  <body>
+    <outline text="Feed 1" type="rss" xmlUrl="https://example.com/feed1" />
+    <outline text="Feed 2" type="rss" xmlUrl="https://example.com/feed2" />
+  </body>
+</opml>
+"""
+
+
+def test_cli_opml_markdown(tmp_path):
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    with patch("feedsnap.cli.parse_opml", return_value=[
+        ("Feed 1", "https://example.com/feed1"),
+        ("Feed 2", "https://example.com/feed2"),
+    ]), patch("feedsnap.cli.fetch_feed", side_effect=[MOCK_FEED, MOCK_FEED_2]):
+        result = runner.invoke(main, ["--opml", str(opml_file)])
+    assert result.exit_code == 0
+    assert "# Mock Feed" in result.output
+    assert "# Mock Feed 2" in result.output
+    assert "### Mock Entry" in result.output
+    assert "### Second Feed Entry" in result.output
+
+
+def test_cli_opml_json(tmp_path):
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    with patch("feedsnap.cli.parse_opml", return_value=[
+        ("Feed 1", "https://example.com/feed1"),
+    ]), patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["--opml", str(opml_file), "--format", "json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "feeds" in data
+    assert len(data["feeds"]) == 1
+    assert data["feeds"][0]["title"] == "Mock Feed"
+
+
+def test_cli_url_and_opml_mutually_exclusive(tmp_path):
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    result = runner.invoke(main, ["https://example.com/feed", "--opml", str(opml_file)])
+    assert result.exit_code == 1
+
+
+def test_cli_no_url_no_opml_error():
+    runner = CliRunner()
+    result = runner.invoke(main, [])
+    assert result.exit_code == 1
+
+
+def test_cli_opml_skips_failed_feeds(tmp_path):
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    with patch("feedsnap.cli.parse_opml", return_value=[
+        ("Feed 1", "https://example.com/feed1"),
+        ("Feed 2", "https://example.com/feed2"),
+    ]), patch("feedsnap.cli.fetch_feed", side_effect=[
+        ValueError("network error"),
+        MOCK_FEED,
+    ]):
+        result = runner.invoke(main, ["--opml", str(opml_file)])
+    assert result.exit_code == 0
+    assert "Warning" in result.output  # stderr is mixed in CliRunner by default
+    assert "Mock Feed" in result.output
+
+
+def test_cli_opml_all_feeds_fail(tmp_path):
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    with patch("feedsnap.cli.parse_opml", return_value=[
+        ("Feed 1", "https://example.com/feed1"),
+    ]), patch("feedsnap.cli.fetch_feed", side_effect=ValueError("all fail")):
+        result = runner.invoke(main, ["--opml", str(opml_file)])
     assert result.exit_code == 1

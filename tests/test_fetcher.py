@@ -1,10 +1,11 @@
 import time
+import xml.etree.ElementTree as ET
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from feedsnap.fetcher import fetch_feed
+from feedsnap.fetcher import fetch_feed, parse_opml
 
 
 def _make_entry(title: str, pub_date: date | None):
@@ -67,3 +68,90 @@ def test_fetch_feed_no_since_returns_all():
     with patch("feedsnap.fetcher.feedparser.parse", return_value=_make_parsed(entries)):
         feed = fetch_feed("https://example.com/feed")
     assert len(feed.entries) == 5
+
+
+FLAT_OPML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Test Feeds</title></head>
+  <body>
+    <outline text="Feed One" type="rss" xmlUrl="https://example.com/feed1" />
+    <outline text="Feed Two" type="rss" xmlUrl="https://example.com/feed2" />
+  </body>
+</opml>
+"""
+
+NESTED_OPML = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Test Feeds</title></head>
+  <body>
+    <outline text="Category" title="Tech">
+      <outline text="Feed One" title="Feed One Title" type="rss" xmlUrl="https://example.com/feed1" />
+    </outline>
+    <outline text="Feed Two" type="rss" xmlUrl="https://example.com/feed2" />
+  </body>
+</opml>
+"""
+
+OPML_NO_FEEDS = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head><title>Empty</title></head>
+  <body>
+    <outline text="Just a category" />
+  </body>
+</opml>
+"""
+
+OPML_TITLE_VS_TEXT = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0">
+  <head></head>
+  <body>
+    <outline text="text attr" title="title attr" type="rss" xmlUrl="https://example.com/f1" />
+    <outline text="only text" type="rss" xmlUrl="https://example.com/f2" />
+  </body>
+</opml>
+"""
+
+
+def test_parse_opml_flat(tmp_path):
+    f = tmp_path / "feeds.opml"
+    f.write_text(FLAT_OPML)
+    result = parse_opml(str(f))
+    assert len(result) == 2
+    assert result[0] == ("Feed One", "https://example.com/feed1")
+    assert result[1] == ("Feed Two", "https://example.com/feed2")
+
+
+def test_parse_opml_nested(tmp_path):
+    f = tmp_path / "nested.opml"
+    f.write_text(NESTED_OPML)
+    result = parse_opml(str(f))
+    assert len(result) == 2
+    urls = [url for _, url in result]
+    assert "https://example.com/feed1" in urls
+    assert "https://example.com/feed2" in urls
+
+
+def test_parse_opml_no_feeds(tmp_path):
+    f = tmp_path / "empty.opml"
+    f.write_text(OPML_NO_FEEDS)
+    result = parse_opml(str(f))
+    assert result == []
+
+
+def test_parse_opml_title_preferred_over_text(tmp_path):
+    f = tmp_path / "title.opml"
+    f.write_text(OPML_TITLE_VS_TEXT)
+    result = parse_opml(str(f))
+    assert result[0][0] == "title attr"
+    assert result[1][0] == "only text"
+
+
+def test_parse_opml_invalid_xml(tmp_path):
+    f = tmp_path / "bad.opml"
+    f.write_text("this is not xml <<< >>>")
+    with pytest.raises(ET.ParseError):
+        parse_opml(str(f))

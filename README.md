@@ -30,6 +30,7 @@ Requires Python 3.10+.
 feedsnap <url> [options]
 
 Options:
+  --opml PATH                      Path to an OPML file containing feed URLs.
   -n, --limit INTEGER              Max entries to return  [default: 8]
   -f, --format [markdown|json]     Output format  [default: markdown]
   --title                          Include feed title as H1 header
@@ -60,6 +61,17 @@ feedsnap https://lobste.rs/rss --since 2d
 # Only show entries on or after a specific date
 feedsnap https://news.ycombinator.com/rss --since 2026-07-11
 ```
+
+### OPML — multiple feeds
+
+Supply an [OPML](https://opml.org/) subscriptions file to process multiple feeds at once:
+
+```bash
+feedsnap --opml feeds.opml
+feedsnap --opml feeds.opml --since 1d --format json | jq '.feeds[].entries[].title'
+```
+
+Failed feeds print a warning to stderr and are skipped; the rest are still returned.
 
 ## Why
 

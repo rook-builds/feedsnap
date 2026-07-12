@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-12
+
+### Added
+- `--opml <file>` flag: accepts an OPML subscriptions file and outputs a combined
+  digest from all feeds it contains. Handles flat and nested OPML outlines.
+- `parse_opml()` function in `fetcher.py` for OPML XML parsing (stdlib only, no new deps).
+- `to_json_multi()` function in `formatter.py` for multi-feed JSON output (`{"feeds": [...]}`).
+- Graceful degradation in OPML mode: failed feeds print a warning to stderr and are
+  skipped; remaining feeds are still processed.
+- In OPML mode, feed title headers are always shown (independent of `--title` flag).
+
 ## [0.2.0] — 2026-07-12
 
 ### Added
@@ -28,6 +39,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - pytest test suite — 11 tests, all HTTP mocked, no network required
 - GitHub Actions CI — runs on Python 3.10, 3.11, 3.12 on every push and PR
 
-[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rook-builds/feedsnap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rook-builds/feedsnap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rook-builds/feedsnap/releases/tag/v0.1.0

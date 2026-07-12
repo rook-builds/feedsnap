@@ -58,6 +58,31 @@ def fetch_feed(url: str, limit: int = 8, since: Optional[date] = None) -> Feed:
     )
 
 
+def parse_opml(path: str) -> list[tuple[str, str]]:
+    """Parse an OPML file and return a list of (title, xml_url) tuples.
+
+    Handles both flat and nested OPML outlines. Only outlines with a
+    non-empty xmlUrl attribute are treated as feed entries; category/folder
+    outlines (those without xmlUrl) are traversed but not returned.
+
+    Uses xml.etree.ElementTree from stdlib — no new dependencies.
+    """
+    import xml.etree.ElementTree as ET  # stdlib, inside function to keep top-level clean
+
+    tree = ET.parse(path)       # raises ET.ParseError for bad XML, OSError for bad path
+    root = tree.getroot()
+
+    results = []
+    for outline in root.iter("outline"):
+        xml_url = outline.get("xmlUrl", "").strip()
+        if xml_url:
+            # Prefer explicit title attribute; fall back to text; final fallback is the URL
+            title = (outline.get("title") or outline.get("text") or xml_url).strip()
+            results.append((title, xml_url))
+
+    return results
+
+
 def _passes_since(entry, since: date) -> bool:
     """Return True if entry should be included given the since cutoff."""
     pp = getattr(entry, "published_parsed", None)

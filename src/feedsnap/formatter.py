@@ -49,3 +49,28 @@ def to_json(feed: Feed) -> str:
         ],
     }
     return json.dumps(data, indent=2) + "\n"
+
+
+def to_json_multi(feeds: list[Feed]) -> str:
+    """Render a list of Feeds as pretty-printed JSON with a 'feeds' wrapper."""
+    import json
+
+    data = {
+        "feeds": [
+            {
+                "title": feed.title,
+                "url": feed.url,
+                "entries": [
+                    {
+                        "title": e.title,
+                        "url": e.url,
+                        "published": e.published,
+                        "summary": e.summary,
+                    }
+                    for e in feed.entries
+                ],
+            }
+            for feed in feeds
+        ]
+    }
+    return json.dumps(data, indent=2) + "\n"
