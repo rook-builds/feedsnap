@@ -33,6 +33,9 @@ Options:
   -n, --limit INTEGER              Max entries to return  [default: 8]
   -f, --format [markdown|json]     Output format  [default: markdown]
   --title                          Include feed title as H1 header
+  --since DATE                     Only include entries published on or after DATE.
+                                   Accepts YYYY-MM-DD or Nd (e.g., 2d for 2 days ago).
+                                   Entries with no published date are always included.
   --help                           Show this message and exit.
 ```
 
@@ -50,6 +53,12 @@ feedsnap https://lobste.rs/rss --format json | jq '.entries[].title'
 
 # With feed title as header
 feedsnap https://simonwillison.net/atom/everything/ --title
+
+# Only show entries from the last 2 days
+feedsnap https://lobste.rs/rss --since 2d
+
+# Only show entries on or after a specific date
+feedsnap https://news.ycombinator.com/rss --since 2026-07-11
 ```
 
 ## Why
