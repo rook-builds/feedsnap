@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "feedsnap"
+version = "0.1.0"
+description = "Turn any RSS or Atom feed into a clean markdown digest."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "feedparser>=6.0",
+]
+
+[project.scripts]
+feedsnap = "feedsnap.cli:main"
+
+[project.urls]
+Repository = "https://github.com/rook-builds/feedsnap"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
