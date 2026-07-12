@@ -7,6 +7,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-12
+
 ### Added
 
 - `--since DATE` option: filter entries by publication date. Accepts ISO format (`YYYY-MM-DD`) or relative shorthand (`Nd` for N days ago, e.g., `--since 2d`). Entries with no published date are always included. The `--limit` applies to the post-filter result set.
@@ -26,5 +28,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - pytest test suite — 11 tests, all HTTP mocked, no network required
 - GitHub Actions CI — runs on Python 3.10, 3.11, 3.12 on every push and PR
 
-[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rook-builds/feedsnap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rook-builds/feedsnap/releases/tag/v0.1.0
