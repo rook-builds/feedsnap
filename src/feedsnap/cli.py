@@ -7,7 +7,7 @@ from pathlib import Path
 
 import click
 
-from .fetcher import fetch_feed, parse_opml
+from .fetcher import Feed, fetch_feed, parse_opml
 from .formatter import to_json, to_json_multi, to_markdown
 from .seen_db import default_db_path, get_seen, mark_seen
 
@@ -39,12 +39,17 @@ def _resolve_db_path(dedup: bool, seen_db: str | None) -> Path | None:
     return None
 
 
-def _apply_dedup(db_path: Path, feed_url: str, feed) -> None:  # type: ignore[type-arg]
-    """Filter *feed.entries* in-place to exclude already-seen URLs, then mark
-    the remaining entries as seen in the database."""
+def _apply_dedup(db_path: Path, feed_url: str, feed: Feed) -> Feed:
+    """Return a new Feed containing only entries not yet seen, then mark
+    those entries as seen in the database.
+
+    Returns a *new* Feed object — the original is not mutated. This
+    makes the function safe to call with shared/mock objects in tests.
+    """
     seen_urls = get_seen(db_path, feed_url)
-    feed.entries = [e for e in feed.entries if e.url not in seen_urls]
-    mark_seen(db_path, feed_url, [e.url for e in feed.entries])
+    new_entries = [e for e in feed.entries if e.url not in seen_urls]
+    mark_seen(db_path, feed_url, [e.url for e in new_entries])
+    return Feed(title=feed.title, url=feed.url, entries=new_entries)
 
 
 @click.command()
@@ -151,7 +156,7 @@ def main(
             sys.exit(1)
 
         if db_path is not None:
-            _apply_dedup(db_path, url, feed)
+            feed = _apply_dedup(db_path, url, feed)
 
         if fmt == "json":
             click.echo(to_json(feed), nl=False)
@@ -181,7 +186,7 @@ def main(
             feed = fetch_feed(feed_url, limit=limit, since=since_date)
 
             if db_path is not None:
-                _apply_dedup(db_path, feed_url, feed)
+                feed = _apply_dedup(db_path, feed_url, feed)
 
             feeds.append(feed)
         except Exception as e:
