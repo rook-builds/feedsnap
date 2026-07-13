@@ -7,6 +7,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-13
+
+### Added
+- `--dedup` flag: skip entries already shown in a previous run. Seen entry URLs
+  are tracked in `~/.feedsnap/seen.db` (SQLite, created automatically).
+- `--seen-db PATH` option: specify a custom SQLite database for the seen-entries
+  cache. Useful for keeping separate seen-lists per project or script. Implies
+  `--dedup` — either flag alone is sufficient to enable deduplication.
+- New `feedsnap.seen_db` module: `get_seen()`, `mark_seen()`, and
+  `default_db_path()` are public API for programmatic use.
+- Dedup works in both single-feed and OPML multi-feed modes; each feed's seen
+  set is scoped by its own URL, so feeds never bleed into each other.
+
+### Details
+- Schema: `seen_entries(url TEXT PRIMARY KEY, feed_url TEXT, first_seen TEXT)`.
+- `INSERT OR IGNORE` makes repeated runs idempotent — no errors, no duplicates.
+- Parent directories for `--seen-db` are created automatically.
+- No new runtime dependencies (sqlite3 is stdlib).
+
 ## [0.3.0] - 2026-07-12
 
 ### Added
@@ -39,7 +58,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - pytest test suite — 11 tests, all HTTP mocked, no network required
 - GitHub Actions CI — runs on Python 3.10, 3.11, 3.12 on every push and PR
 
-[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rook-builds/feedsnap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rook-builds/feedsnap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rook-builds/feedsnap/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rook-builds/feedsnap/releases/tag/v0.1.0
