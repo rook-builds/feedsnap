@@ -188,3 +188,101 @@ def test_cli_opml_all_feeds_fail(tmp_path):
     ]), patch("feedsnap.cli.fetch_feed", side_effect=ValueError("all fail")):
         result = runner.invoke(main, ["--opml", str(opml_file)])
     assert result.exit_code == 1
+
+
+# ── Dedup tests (--dedup / --seen-db) ────────────────────────────────────────
+
+MOCK_FEED_FOR_DEDUP = Feed(
+    title="Dedup Feed",
+    url="https://example.com/feed",
+    entries=[
+        FeedEntry(
+            title="Entry One",
+            url="https://example.com/entry-1",
+            published="2026-07-13",
+            summary="First entry.",
+        ),
+        FeedEntry(
+            title="Entry Two",
+            url="https://example.com/entry-2",
+            published="2026-07-13",
+            summary="Second entry.",
+        ),
+    ],
+)
+
+
+def test_cli_dedup_shows_all_entries_on_first_run(tmp_path):
+    """First run with --seen-db should show all entries (nothing seen yet)."""
+    db = tmp_path / "seen.db"
+    runner = CliRunner()
+
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        result = runner.invoke(
+            main, ["https://example.com/feed", "--seen-db", str(db)]
+        )
+    assert result.exit_code == 0
+    assert "Entry One" in result.output
+    assert "Entry Two" in result.output
+
+
+def test_cli_dedup_filters_seen_on_second_run(tmp_path):
+    """Second run with --seen-db should skip entries seen in the first run."""
+    db = tmp_path / "seen.db"
+    runner = CliRunner()
+
+    # First run — marks both entries as seen
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        runner.invoke(main, ["https://example.com/feed", "--seen-db", str(db)])
+
+    # Second run — feed still returns the same entries, but dedup filters them
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        result2 = runner.invoke(
+            main, ["https://example.com/feed", "--seen-db", str(db)]
+        )
+    assert result2.exit_code == 0
+    assert "Entry One" not in result2.output
+    assert "Entry Two" not in result2.output
+
+
+def test_cli_dedup_flag_uses_default_db_path(tmp_path):
+    """--dedup flag should work; monkeypatch default_db_path for isolation."""
+    db = tmp_path / "seen.db"
+    runner = CliRunner()
+
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP), \
+         patch("feedsnap.cli.default_db_path", return_value=db):
+        result = runner.invoke(main, ["https://example.com/feed", "--dedup"])
+    assert result.exit_code == 0
+    assert "Entry One" in result.output
+
+
+def test_cli_seen_db_implies_dedup(tmp_path):
+    """--seen-db alone (without --dedup) should enable deduplication."""
+    db = tmp_path / "seen.db"
+    runner = CliRunner()
+
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        runner.invoke(main, ["https://example.com/feed", "--seen-db", str(db)])
+
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        result2 = runner.invoke(
+            main, ["https://example.com/feed", "--seen-db", str(db)]
+        )
+    assert result2.exit_code == 0
+    assert "Entry One" not in result2.output
+    assert "Entry Two" not in result2.output
+
+
+def test_cli_no_dedup_without_flag():
+    """Without --dedup or --seen-db, entries should always be shown."""
+    runner = CliRunner()
+
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        result1 = runner.invoke(main, ["https://example.com/feed"])
+    assert "Entry One" in result1.output
+
+    # Second call — same feed, no DB, same entries should appear again
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
+        result2 = runner.invoke(main, ["https://example.com/feed"])
+    assert "Entry One" in result2.output
