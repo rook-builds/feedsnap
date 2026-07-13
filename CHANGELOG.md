@@ -7,6 +7,30 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-13
+
+### Added
+- `feedsnap introspect` — outputs the full command tree as JSON (ACLI v0.1.0 format).
+  Agents can call this for initial capability mapping without reading documentation.
+- `feedsnap skill` — outputs a `SKILL.md` for agent bootstrapping in the
+  [agentskills.io](https://agentskills.io) format. Redirect to a file:
+  `feedsnap skill > SKILL.md`.
+- `feedsnap --version` — prints the installed version string and exits.
+- New `feedsnap.introspect` module: `get_introspect_json()` and `get_skill_md()`
+  are public API for programmatic use.
+- Error message when no URL or `--opml` is supplied now mentions
+  `feedsnap introspect` for agent discovery.
+- Both `-h` and `--help` trigger the help text.
+
+### Fixed
+- `__version__` in `feedsnap/__init__.py` was stale at `0.3.0` while
+  `pyproject.toml` was at `0.4.0`. Both are now `0.5.0`.
+
+### Notes
+- ACLI compliance spec: [ACLI v0.1.0 Draft](https://github.com/alpibrusl/acli).
+  feedsnap implements the progressive discovery layer (introspect + skill).
+  Output envelope format (`--output json`) is planned for v0.6.
+
 ## [0.4.0] - 2026-07-13
 
 ### Added
@@ -58,7 +82,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - pytest test suite — 11 tests, all HTTP mocked, no network required
 - GitHub Actions CI — runs on Python 3.10, 3.11, 3.12 on every push and PR
 
-[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rook-builds/feedsnap/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rook-builds/feedsnap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rook-builds/feedsnap/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rook-builds/feedsnap/compare/v0.1.0...v0.2.0
