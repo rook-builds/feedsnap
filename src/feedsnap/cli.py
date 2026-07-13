@@ -7,9 +7,33 @@ from pathlib import Path
 
 import click
 
+from . import __version__
 from .fetcher import Feed, fetch_feed, parse_opml
 from .formatter import to_json, to_json_multi, to_markdown
+from .introspect import get_introspect_json, get_skill_md
 from .seen_db import default_db_path, get_seen, mark_seen
+
+# ---------------------------------------------------------------------------
+# ACLI special sub-commands (handled before Click sees them)
+# ---------------------------------------------------------------------------
+
+#: When the first positional argument is one of these, we dispatch to the
+#: corresponding ACLI function instead of treating it as a feed URL.
+_ACLI_COMMANDS = {"introspect", "skill"}
+
+
+def _handle_acli_command(name: str) -> None:
+    """Dispatch to an ACLI built-in and exit."""
+    if name == "introspect":
+        click.echo(get_introspect_json())
+    elif name == "skill":
+        click.echo(get_skill_md(), nl=False)
+    sys.exit(0)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
 def _parse_since(value: str) -> date:
@@ -52,7 +76,13 @@ def _apply_dedup(db_path: Path, feed_url: str, feed: Feed) -> Feed:
     return Feed(title=feed.title, url=feed.url, entries=new_entries)
 
 
-@click.command()
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+@click.command(context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(version=__version__, prog_name="feedsnap")
 @click.argument("url", required=False, default=None)
 @click.option(
     "--opml", "opml_file",
@@ -83,8 +113,11 @@ def _apply_dedup(db_path: Path, feed_url: str, feed: Feed) -> Feed:
     "--since",
     default=None,
     metavar="DATE",
-    help="Only include entries published on or after DATE. "
-         "Accepts YYYY-MM-DD or Nd (e.g., 2d for 2 days ago).",
+    help=(
+        "Only include entries published on or after DATE. "
+        "Accepts YYYY-MM-DD or Nd (e.g., 2d for 2 days ago). "
+        "Entries with no published date are always included."
+    ),
 )
 @click.option(
     "--dedup",
@@ -122,7 +155,17 @@ def main(
 
     URL is the feed address (RSS 2.0 or Atom 1.0), or use --opml to
     supply an OPML file with multiple feed URLs.
+
+    \b
+    ACLI built-in commands (agent discovery):
+      feedsnap introspect   Output the full command tree as JSON.
+      feedsnap skill        Output a SKILL.md for agent bootstrapping.
     """
+    # ── ACLI built-in commands ───────────────────────────────────────────────
+    if url in _ACLI_COMMANDS:
+        _handle_acli_command(url)
+        return  # unreachable (sys.exit inside), but satisfies type checkers
+
     # Validate: exactly one of URL or --opml must be provided
     if url and opml_file:
         click.echo("Error: Provide either a URL or --opml, not both.", err=True)
@@ -130,7 +173,8 @@ def main(
     if not url and not opml_file:
         click.echo(
             "Error: Provide a feed URL or use --opml <file>.\n\n"
-            "Try 'feedsnap --help' for usage.",
+            "Try 'feedsnap --help' for usage.\n"
+            "Try 'feedsnap introspect' for machine-readable capability info.",
             err=True,
         )
         sys.exit(1)
