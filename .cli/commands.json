@@ -1,0 +1,126 @@
+{
+  "name": "feedsnap",
+  "version": "0.5.0",
+  "acli_version": "0.1.0",
+  "commands": [
+    {
+      "name": "snap",
+      "description": "Fetch an RSS or Atom feed and output a clean digest. This is the default command — invoke directly as 'feedsnap <url> [options]'.",
+      "arguments": [
+        {
+          "name": "url",
+          "type": "string",
+          "required": false,
+          "description": "RSS 2.0 or Atom 1.0 feed URL. Required unless --opml is used."
+        }
+      ],
+      "options": [
+        {
+          "name": "--opml",
+          "type": "path",
+          "required": false,
+          "description": "Path to an OPML file containing feed URLs (multi-feed mode). Failed feeds are skipped with a warning; remaining feeds are still returned.",
+          "since_version": "0.3.0"
+        },
+        {
+          "name": "--limit",
+          "short": "-n",
+          "type": "int",
+          "required": false,
+          "default": 8,
+          "description": "Maximum entries to return. In OPML mode this limit applies per-feed, not across all feeds."
+        },
+        {
+          "name": "--format",
+          "short": "-f",
+          "type": "enum[markdown|json]",
+          "required": false,
+          "default": "markdown",
+          "description": "Output format. 'markdown' for human reading or LLM context; 'json' for piping to jq or other tools."
+        },
+        {
+          "name": "--title",
+          "type": "bool",
+          "required": false,
+          "default": false,
+          "description": "Include the feed title as an H1 header. Always on in OPML mode (overrides this flag)."
+        },
+        {
+          "name": "--since",
+          "type": "string",
+          "required": false,
+          "description": "Only include entries published on or after this date. Accepts YYYY-MM-DD or Nd shorthand (e.g., '2d' = two days ago). Entries with no published date are always included.",
+          "since_version": "0.2.0"
+        },
+        {
+          "name": "--dedup",
+          "type": "bool",
+          "required": false,
+          "default": false,
+          "description": "Skip entries already seen in a previous run. Seen entry URLs are tracked in ~/.feedsnap/seen.db (SQLite, created automatically on first use).",
+          "since_version": "0.4.0"
+        },
+        {
+          "name": "--seen-db",
+          "type": "path",
+          "required": false,
+          "description": "Custom SQLite database for tracking seen entries (implies --dedup). Useful for per-project seen lists.",
+          "since_version": "0.4.0"
+        }
+      ],
+      "subcommands": [],
+      "examples": [
+        {
+          "intent": "Get a markdown digest of the 8 latest entries",
+          "command": "feedsnap https://lobste.rs/rss"
+        },
+        {
+          "intent": "Limit to 5 entries and output JSON",
+          "command": "feedsnap https://lobste.rs/rss --limit 5 --format json"
+        },
+        {
+          "intent": "Only show entries from the last 2 days",
+          "command": "feedsnap https://lobste.rs/rss --since 2d"
+        },
+        {
+          "intent": "Only show entries not seen in a previous run",
+          "command": "feedsnap https://lobste.rs/rss --dedup"
+        },
+        {
+          "intent": "Process multiple feeds from an OPML file (last day only)",
+          "command": "feedsnap --opml feeds.opml --since 1d"
+        }
+      ]
+    },
+    {
+      "name": "introspect",
+      "description": "Output the full command tree as JSON (ACLI v0.1.0 format). Agents should call this for initial capability mapping. Invoke as: feedsnap introspect",
+      "arguments": [],
+      "options": [],
+      "subcommands": [],
+      "examples": [
+        {
+          "intent": "Print the full ACLI command tree as JSON",
+          "command": "feedsnap introspect"
+        },
+        {
+          "intent": "Pretty-print the command tree",
+          "command": "feedsnap introspect | python -m json.tool"
+        }
+      ]
+    },
+    {
+      "name": "skill",
+      "description": "Output a SKILL.md file for agent bootstrapping (agentskills.io format). Redirect to a file to capture it. Invoke as: feedsnap skill",
+      "arguments": [],
+      "options": [],
+      "subcommands": [],
+      "examples": [
+        {
+          "intent": "Write SKILL.md to the current directory",
+          "command": "feedsnap skill > SKILL.md"
+        }
+      ]
+    }
+  ]
+}
