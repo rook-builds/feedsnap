@@ -3,11 +3,13 @@ from __future__ import annotations
 import re
 import sys
 from datetime import date, timedelta
+from pathlib import Path
 
 import click
 
 from .fetcher import fetch_feed, parse_opml
 from .formatter import to_json, to_json_multi, to_markdown
+from .seen_db import default_db_path, get_seen, mark_seen
 
 
 def _parse_since(value: str) -> date:
@@ -22,6 +24,27 @@ def _parse_since(value: str) -> date:
             f"Invalid --since value '{value}'. "
             "Use YYYY-MM-DD (e.g., 2026-07-11) or Nd (e.g., 2d for 2 days ago)."
         )
+
+
+def _resolve_db_path(dedup: bool, seen_db: str | None) -> Path | None:
+    """Return the SQLite DB path to use for dedup, or None if dedup is off.
+
+    Priority: explicit ``--seen-db PATH`` > ``--dedup`` (default path) > None.
+    Either flag alone is sufficient to enable deduplication.
+    """
+    if seen_db is not None:
+        return Path(seen_db)
+    if dedup:
+        return default_db_path()
+    return None
+
+
+def _apply_dedup(db_path: Path, feed_url: str, feed) -> None:  # type: ignore[type-arg]
+    """Filter *feed.entries* in-place to exclude already-seen URLs, then mark
+    the remaining entries as seen in the database."""
+    seen_urls = get_seen(db_path, feed_url)
+    feed.entries = [e for e in feed.entries if e.url not in seen_urls]
+    mark_seen(db_path, feed_url, [e.url for e in feed.entries])
 
 
 @click.command()
@@ -58,6 +81,28 @@ def _parse_since(value: str) -> date:
     help="Only include entries published on or after DATE. "
          "Accepts YYYY-MM-DD or Nd (e.g., 2d for 2 days ago).",
 )
+@click.option(
+    "--dedup",
+    is_flag=True,
+    default=False,
+    help=(
+        "Skip entries already seen in a previous run. "
+        "Seen entry URLs are tracked in ~/.feedsnap/seen.db. "
+        "Use --seen-db to specify a custom database path."
+    ),
+)
+@click.option(
+    "--seen-db",
+    "seen_db",
+    default=None,
+    type=click.Path(dir_okay=False),
+    metavar="PATH",
+    help=(
+        "Path to a custom SQLite database for tracking seen entries "
+        "(implies --dedup). Useful for keeping separate seen-lists per "
+        "project or script."
+    ),
+)
 def main(
     url: str | None,
     opml_file: str | None,
@@ -65,6 +110,8 @@ def main(
     fmt: str,
     title: bool,
     since: str | None,
+    dedup: bool,
+    seen_db: str | None,
 ) -> None:
     """Turn an RSS or Atom feed into a clean digest.
 
@@ -92,6 +139,9 @@ def main(
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
 
+    # Resolve dedup DB path (None = dedup disabled)
+    db_path = _resolve_db_path(dedup, seen_db)
+
     # ── Single-feed mode ─────────────────────────────────────────────────────
     if url:
         try:
@@ -99,6 +149,9 @@ def main(
         except Exception as e:
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
+
+        if db_path is not None:
+            _apply_dedup(db_path, url, feed)
 
         if fmt == "json":
             click.echo(to_json(feed), nl=False)
@@ -126,6 +179,10 @@ def main(
     for _feed_title, feed_url in feed_specs:
         try:
             feed = fetch_feed(feed_url, limit=limit, since=since_date)
+
+            if db_path is not None:
+                _apply_dedup(db_path, feed_url, feed)
+
             feeds.append(feed)
         except Exception as e:
             click.echo(f"Warning: Could not fetch {feed_url}: {e}", err=True)
