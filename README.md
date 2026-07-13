@@ -41,7 +41,8 @@ Options:
                                    Seen URLs are tracked in ~/.feedsnap/seen.db.
   --seen-db PATH                   Custom SQLite DB for tracking seen entries
                                    (implies --dedup). Handy for per-project seen lists.
-  --help                           Show this message and exit.
+  --version                        Show the version and exit.
+  --help / -h                      Show this message and exit.
 ```
 
 ### Examples
@@ -99,6 +100,28 @@ Works in OPML mode too — each feed maintains its own seen set:
 ```bash
 feedsnap --opml feeds.opml --dedup
 ```
+
+## Agent discovery (ACLI)
+
+feedsnap implements [ACLI v0.1.0](https://github.com/alpibrusl/acli) progressive discovery.
+AI agents can learn feedsnap's full capability surface at runtime without pre-loaded schemas:
+
+```bash
+# Machine-readable command tree (JSON) — use for initial capability mapping
+feedsnap introspect
+
+# SKILL.md for agent bootstrapping (agentskills.io format)
+feedsnap skill > SKILL.md
+
+# Or just check --help
+feedsnap --help
+```
+
+The `.cli/` folder in this repo is the persistent knowledge base:
+- `.cli/README.md` — human/agent overview
+- `.cli/commands.json` — same output as `feedsnap introspect`
+- `.cli/examples/snap.sh` — runnable example invocations
+- `.cli/changelog.md` — recent changes, agent-summarised
 
 ## Why
 
