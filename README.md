@@ -37,6 +37,10 @@ Options:
   --since DATE                     Only include entries published on or after DATE.
                                    Accepts YYYY-MM-DD or Nd (e.g., 2d for 2 days ago).
                                    Entries with no published date are always included.
+  --dedup                          Skip entries already seen in a previous run.
+                                   Seen URLs are tracked in ~/.feedsnap/seen.db.
+  --seen-db PATH                   Custom SQLite DB for tracking seen entries
+                                   (implies --dedup). Handy for per-project seen lists.
   --help                           Show this message and exit.
 ```
 
@@ -72,6 +76,29 @@ feedsnap --opml feeds.opml --since 1d --format json | jq '.feeds[].entries[].tit
 ```
 
 Failed feeds print a warning to stderr and are skipped; the rest are still returned.
+
+### Deduplication — only show new entries
+
+Pass `--dedup` to skip entries you've already seen. feedsnap tracks seen entry
+URLs in `~/.feedsnap/seen.db` (SQLite, created on first use). Run it on a cron,
+in a script, or every agent session — it only shows what's new since last time.
+
+```bash
+# First run: shows all entries, marks them as seen
+feedsnap https://lobste.rs/rss --dedup
+
+# Second run: only shows entries published since the last run
+feedsnap https://lobste.rs/rss --dedup
+
+# Custom DB path — useful for per-project or per-script seen lists
+feedsnap https://lobste.rs/rss --seen-db ~/projects/myproject/feedsnap.db
+```
+
+Works in OPML mode too — each feed maintains its own seen set:
+
+```bash
+feedsnap --opml feeds.opml --dedup
+```
 
 ## Why
 
