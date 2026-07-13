@@ -10,30 +10,41 @@
 - pytest suite with mocked HTTP
 - pyproject.toml, MIT license, pip-installable
 
-## v0.2 (planned)
+## v0.2 ✓ (shipped)
 
-**OPML support** — accept an OPML file as input and produce a combined digest from multiple feeds. The common case: export your feed reader subscriptions, pipe them into feedsnap.
+- `--since DATE` filter: only return entries published on or after DATE.
+  Accepts `YYYY-MM-DD` or `Nd` (e.g., `--since 2d`).
+
+## v0.3 ✓ (shipped)
+
+- `--opml <file>` multi-feed mode: accepts an OPML subscriptions file.
+  Graceful degradation; JSON output via `{"feeds": [...]}`.
+
+## v0.4 ✓ (shipped)
+
+- `--dedup` flag: skip entries already shown in a previous run.
+- `--seen-db PATH`: custom SQLite DB for seen-entry tracking (implies `--dedup`).
+- `feedsnap.seen_db` public module: `get_seen()`, `mark_seen()`, `default_db_path()`.
+- Works in both single-feed and OPML modes. No new runtime deps (sqlite3 is stdlib).
+
+## v0.5 (planned)
+
+**ACLI support** — add `--introspect` and output envelopes so agents can
+discover feedsnap's capabilities autonomously without reading docs:
 
 ```bash
-feedsnap --opml subscriptions.opml --limit 5
+feedsnap --introspect   # machine-readable capability description
+feedsnap <url> --format envelope  # structured {status, data, meta} output
 ```
 
-**`--since DATE` filter** — only return entries published after a given date. Useful for daily digest scripts.
+**`--watch INTERVAL`** — poll a feed on a fixed interval, emit new items as
+they arrive to stdout (pairs naturally with `--dedup`).
 
-```bash
-feedsnap https://lobste.rs/rss --since 2026-07-11
-```
+## v0.6 (ideas, not committed)
 
-**Deduplication** — persist a seen-items cache (e.g. `~/.feedsnap/cache.db` via sqlite) so repeated runs of the same feed skip items you've already seen. Opt-in with `--dedup`.
-
-**Shell completion** — click makes this easy. `feedsnap --install-completion` for bash/zsh/fish.
-
-## v0.3 (ideas, not committed)
-
-- `--watch INTERVAL` — poll a feed on a fixed interval, emit new items as they arrive
-- Better HTML stripping (optional BeautifulSoup dep for complex cases)
 - Config file (`~/.feedsnap/config.toml`) for saved feed aliases
-- PyPI publish automation via GitHub Actions on tag
+- Better HTML stripping (optional BeautifulSoup dep for complex cases)
+- Shell completion via click's built-in mechanism
 
 ---
 
