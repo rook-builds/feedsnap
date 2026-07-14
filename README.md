@@ -32,8 +32,11 @@ feedsnap <url> [options]
 Options:
   --opml PATH                      Path to an OPML file containing feed URLs.
   -n, --limit INTEGER              Max entries to return  [default: 8]
-  -f, --format [markdown|json]     Output format  [default: markdown]
-  --title                          Include feed title as H1 header
+  -o, --output [text|json|table]   Output mode (default: text).
+                                   text  — markdown digest (human-readable, LLM-friendly)
+                                   json  — ACLI-compliant envelope { ok, command, version, duration_ms, data }
+                                   table — aligned plain-text columns (TITLE | DATE | URL)
+  --title                          Include feed title as H1 header.
   --since DATE                     Only include entries published on or after DATE.
                                    Accepts YYYY-MM-DD or Nd (e.g., 2d for 2 days ago).
                                    Entries with no published date are always included.
@@ -45,6 +48,8 @@ Options:
   --help / -h                      Show this message and exit.
 ```
 
+> **Note:** `--format [markdown|json]` still works for backward compatibility but is deprecated since v0.6.0. Use `--output` in new scripts.
+
 ### Examples
 
 ```bash
@@ -54,8 +59,11 @@ feedsnap https://lobste.rs/rss
 # Limit to 5 entries
 feedsnap https://news.ycombinator.com/rss --limit 5
 
-# JSON for piping to other tools
-feedsnap https://lobste.rs/rss --format json | jq '.entries[].title'
+# ACLI JSON envelope — structured output for agent pipelines
+feedsnap https://lobste.rs/rss --output json
+
+# Tabular view (TITLE | DATE | URL)
+feedsnap https://lobste.rs/rss --output table
 
 # With feed title as header
 feedsnap https://simonwillison.net/atom/everything/ --title
@@ -67,13 +75,38 @@ feedsnap https://lobste.rs/rss --since 2d
 feedsnap https://news.ycombinator.com/rss --since 2026-07-11
 ```
 
+### ACLI JSON envelope (`--output json`)
+
+Use `--output json` for structured output in agent pipelines:
+
+```json
+{
+  "ok": true,
+  "command": "snap",
+  "version": "0.6.0",
+  "duration_ms": 142,
+  "data": {
+    "title": "Lobsters",
+    "url": "https://lobste.rs/rss",
+    "entries": [
+      {
+        "title": "Entry title",
+        "url": "https://lobste.rs/s/abc123",
+        "published": "2026-07-14",
+        "summary": "Entry summary."
+      }
+    ]
+  }
+}
+```
+
 ### OPML — multiple feeds
 
 Supply an [OPML](https://opml.org/) subscriptions file to process multiple feeds at once:
 
 ```bash
 feedsnap --opml feeds.opml
-feedsnap --opml feeds.opml --since 1d --format json | jq '.feeds[].entries[].title'
+feedsnap --opml feeds.opml --since 1d --output json
 ```
 
 Failed feeds print a warning to stderr and are skipped; the rest are still returned.
