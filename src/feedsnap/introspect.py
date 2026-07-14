@@ -58,14 +58,33 @@ _COMMANDS = [
                 ),
             },
             {
+                "name": "--output",
+                "short": "-o",
+                "type": "enum[text|json|table]",
+                "required": False,
+                "default": "text",
+                "description": (
+                    "Output mode. 'text' emits markdown (human-readable, LLM-friendly); "
+                    "'json' emits an ACLI-compliant envelope "
+                    "({ ok, command, version, duration_ms, data }); "
+                    "'table' emits aligned plain-text columns (TITLE | DATE | URL). "
+                    "Replaces the deprecated --format flag."
+                ),
+                "since_version": "0.6.0",
+            },
+            {
                 "name": "--format",
                 "short": "-f",
                 "type": "enum[markdown|json]",
                 "required": False,
                 "default": "markdown",
+                "deprecated": True,
+                "deprecated_since": "0.6.0",
                 "description": (
-                    "Output format. 'markdown' for human reading or LLM context; "
-                    "'json' for piping to jq or other tools."
+                    "Deprecated since v0.6.0. Use --output instead. "
+                    "Still accepted for backward compatibility: "
+                    "'markdown' maps to --output text, "
+                    "'json' maps to legacy JSON output (no ACLI envelope)."
                 ),
             },
             {
@@ -119,8 +138,12 @@ _COMMANDS = [
                 "command": "feedsnap https://lobste.rs/rss",
             },
             {
-                "intent": "Limit to 5 entries and output JSON",
-                "command": "feedsnap https://lobste.rs/rss --limit 5 --format json",
+                "intent": "Limit to 5 entries and output ACLI JSON envelope",
+                "command": "feedsnap https://lobste.rs/rss --limit 5 --output json",
+            },
+            {
+                "intent": "Tabular output (title, date, URL)",
+                "command": "feedsnap https://lobste.rs/rss --output table",
             },
             {
                 "intent": "Only show entries from the last 2 days",
@@ -201,8 +224,8 @@ def get_introspect_json(indent: int = 2) -> str:
 _SKILL_TEMPLATE = """\
 ---
 name: feedsnap
-description: Invoke the `feedsnap` CLI to turn RSS/Atom feeds into clean markdown or JSON digests.
-when_to_use: Use when you need to read RSS or Atom feeds, fetch recent entries, filter by date, deduplicate seen items, or combine multiple feeds via an OPML file.
+description: Invoke the `feedsnap` CLI to turn RSS/Atom feeds into clean markdown, JSON, or table digests.
+when_to_use: Use when you need to read RSS or Atom feeds, fetch recent entries, filter by date, deduplicate seen items, combine multiple feeds via an OPML file, or get structured ACLI-envelope JSON output.
 ---
 
 # feedsnap
@@ -213,7 +236,7 @@ when_to_use: Use when you need to read RSS or Atom feeds, fetch recent entries, 
 
 ### `feedsnap <url>` — fetch a single feed
 
-Turn any RSS 2.0 or Atom 1.0 feed URL into a clean markdown digest.
+Turn any RSS 2.0 or Atom 1.0 feed URL into a clean digest.
 
 **Arguments:**
 - `url` · string · optional — RSS or Atom feed URL. Required unless `--opml` is used.
@@ -224,108 +247,68 @@ Turn any RSS 2.0 or Atom 1.0 feed URL into a clean markdown digest.
 |------|------|---------|-------------|
 | `--opml PATH` | path | — | OPML subscriptions file for multi-feed mode. |
 | `--limit N` / `-n N` | int | 8 | Max entries to return (per feed in OPML mode). |
-| `--format [markdown\\|json]` / `-f` | enum | markdown | Output format. |
+| `--output MODE` / `-o MODE` | enum | text | Output mode: `text` (markdown), `json` (ACLI envelope), `table` (aligned columns). |
 | `--title` | bool | false | Include feed title as H1 header. Always on in OPML mode. |
-| `--since DATE` | string | — | Only entries on/after DATE. Accepts `YYYY-MM-DD` or `Nd` (e.g. `2d`). No-date entries are always included. |
-| `--dedup` | bool | false | Skip entries already seen in a previous run. Tracks URLs in `~/.feedsnap/seen.db`. |
+| `--since DATE` | string | — | Only entries on/after DATE. Accepts `YYYY-MM-DD` or `Nd` (e.g. `2d`). No-date entries always included. |
+| `--dedup` | bool | false | Skip entries already seen in a previous run (tracked in `~/.feedsnap/seen.db`). |
 | `--seen-db PATH` | path | — | Custom SQLite DB for seen-entry tracking (implies `--dedup`). |
 
+**Note:** `--format` (accepted: `markdown`, `json`) is deprecated since v0.6.0. Use `--output` instead.
+`--format markdown` → `--output text`. `--format json` → legacy JSON (no ACLI envelope).
+
+**Output modes:**
+
+- `--output text` (default) — human-readable markdown. Best for LLM context.
+- `--output json` — ACLI envelope: `{ ok, command, version, duration_ms, data }`. Use for agent pipelines.
+- `--output table` — aligned plain-text columns: TITLE | DATE | URL. Good for quick scanning.
+
 **Examples:**
+
 ```bash
-# Markdown digest of the 8 latest entries
+# Markdown digest (default)
 feedsnap https://lobste.rs/rss
 
-# JSON output, 5 entries
-feedsnap https://lobste.rs/rss --limit 5 --format json
+# ACLI JSON envelope
+feedsnap https://simonwillison.net/atom/everything/ --output json
 
-# Only entries from the last 2 days
-feedsnap https://lobste.rs/rss --since 2d
+# Tabular output
+feedsnap https://news.ycombinator.com/rss --output table --limit 10
 
-# Only new entries since last run (deduplication)
-feedsnap https://lobste.rs/rss --dedup
+# Only entries from the last 2 days, not yet seen
+feedsnap https://lobste.rs/rss --since 2d --dedup
 
-# Multiple feeds from OPML, last day only
-feedsnap --opml feeds.opml --since 1d
+# Multiple feeds from an OPML file
+feedsnap --opml feeds.opml --since 1d --output json
 ```
 
-**See also:** `feedsnap introspect`, `feedsnap skill`
+### `feedsnap introspect`
 
----
+Output the full command tree as JSON (ACLI v0.1.0 format).
+Use for initial capability mapping without reading documentation.
 
-### `feedsnap introspect` — machine-readable command tree
-
-Output the full capability tree as JSON (ACLI v{acli_version} format). Use this for initial agent capability mapping.
-
-**Examples:**
 ```bash
 feedsnap introspect
 feedsnap introspect | python -m json.tool
 ```
 
-**See also:** `feedsnap skill`
+### `feedsnap skill`
 
----
+Output this SKILL.md for agent bootstrapping.
 
-### `feedsnap skill` — generate this file
-
-Output this SKILL.md to stdout. Redirect to a file to capture it.
-
-**Examples:**
 ```bash
 feedsnap skill > SKILL.md
 ```
 
----
+## Notes for agents
 
-## Output format
-
-| Flag | Format | Best for |
-|------|--------|----------|
-| (default) | Markdown | Human reading, LLM context |
-| `--format json` | JSON | Piping to `jq`, scripting |
-
-**JSON schema (single feed):**
-```json
-{{
-  "title": "Feed title",
-  "url": "https://example.com/feed",
-  "entries": [
-    {{
-      "title": "Entry title",
-      "url": "https://example.com/entry",
-      "published": "2026-07-13",
-      "summary": "Truncated summary text (≤300 chars)..."
-    }}
-  ]
-}}
-```
-
-**JSON schema (OPML multi-feed, `--format json`):**
-```json
-{{
-  "feeds": [ /* array of single-feed objects above */ ]
-}}
-```
-
-## Exit codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Error (network failure, invalid URL, bad OPML, no feeds fetched) |
-
-## Further discovery
-
-```bash
-feedsnap --help                        # Human-readable usage
-feedsnap introspect                    # Machine-readable command tree (JSON)
-feedsnap introspect | python -m json.tool  # Pretty-printed
-```
-
-Built by [Rook](https://github.com/rook-builds) — ACLI spec v{acli_version}
+- Exit code `0` on success, `1` on error (feed fetch failure, bad arguments, empty OPML).
+- Error messages go to **stderr**; feed output goes to **stdout**.
+- `--output json` envelope has `ok: true` on success. On error, the process exits 1 before printing.
+- `--dedup` is idempotent: repeated calls with the same URL are safe.
+- `--opml` mode applies `--limit` per-feed (not across all feeds combined).
 """
 
 
 def get_skill_md() -> str:
-    """Return the SKILL.md content for agent bootstrapping."""
-    return _SKILL_TEMPLATE.format(acli_version=ACLI_VERSION)
+    """Return the SKILL.md bootstrap content for agentskills.io format."""
+    return _SKILL_TEMPLATE
