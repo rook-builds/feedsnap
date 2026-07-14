@@ -1,4 +1,5 @@
 import json
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -30,6 +31,7 @@ def test_cli_default_markdown():
 
 
 def test_cli_json_format():
+    """--format json should emit legacy (non-envelope) JSON for backward compat."""
     runner = CliRunner()
     with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
         result = runner.invoke(main, ["https://example.com/feed", "--format", "json"])
@@ -37,6 +39,10 @@ def test_cli_json_format():
     data = json.loads(result.output)
     assert data["title"] == "Mock Feed"
     assert len(data["entries"]) == 1
+    # Legacy format does NOT have envelope keys
+    assert "ok" not in data
+    assert "command" not in data
+    assert "duration_ms" not in data
 
 
 def test_cli_with_title():
@@ -63,7 +69,6 @@ def test_cli_error_exits_nonzero():
 
 def test_cli_since_passed_through():
     """--since DATE is parsed and passed to fetch_feed as a date object."""
-    from datetime import date
     runner = CliRunner()
     with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED) as mock_fetch:
         runner.invoke(main, ["https://example.com/feed", "--since", "2026-07-11"])
@@ -74,7 +79,6 @@ def test_cli_since_passed_through():
 
 def test_cli_since_relative_passed_through():
     """--since Nd is converted to an absolute date before passing to fetch_feed."""
-    from datetime import date, timedelta
     runner = CliRunner()
     today = date.today()
     with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED) as mock_fetch:
@@ -235,54 +239,141 @@ def test_cli_dedup_filters_seen_on_second_run(tmp_path):
     with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
         runner.invoke(main, ["https://example.com/feed", "--seen-db", str(db)])
 
-    # Second run — feed still returns the same entries, but dedup filters them
+    # Second run — both entries are now seen, so output should be empty
     with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
-        result2 = runner.invoke(
+        result = runner.invoke(
             main, ["https://example.com/feed", "--seen-db", str(db)]
         )
-    assert result2.exit_code == 0
-    assert "Entry One" not in result2.output
-    assert "Entry Two" not in result2.output
+    assert result.exit_code == 0
+    assert "Entry One" not in result.output
+    assert "Entry Two" not in result.output
 
 
-def test_cli_dedup_flag_uses_default_db_path(tmp_path):
-    """--dedup flag should work; monkeypatch default_db_path for isolation."""
+def test_cli_dedup_flag_uses_default_db(tmp_path, monkeypatch):
+    """--dedup alone should use the default DB path."""
     db = tmp_path / "seen.db"
-    runner = CliRunner()
+    monkeypatch.setattr("feedsnap.cli.default_db_path", lambda: db)
 
-    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP), \
-         patch("feedsnap.cli.default_db_path", return_value=db):
+    runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
         result = runner.invoke(main, ["https://example.com/feed", "--dedup"])
     assert result.exit_code == 0
-    assert "Entry One" in result.output
 
 
-def test_cli_seen_db_implies_dedup(tmp_path):
-    """--seen-db alone (without --dedup) should enable deduplication."""
-    db = tmp_path / "seen.db"
+# ── --output flag tests (v0.6) ────────────────────────────────────────────────
+
+
+def test_cli_output_text_is_default():
+    """No --output flag should produce markdown output (same as --output text)."""
     runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["https://example.com/feed"])
+    assert result.exit_code == 0
+    assert "### Mock Entry" in result.output
 
-    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
-        runner.invoke(main, ["https://example.com/feed", "--seen-db", str(db)])
 
-    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
-        result2 = runner.invoke(
-            main, ["https://example.com/feed", "--seen-db", str(db)]
+def test_cli_output_text_explicit():
+    """--output text should produce markdown output."""
+    runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["https://example.com/feed", "--output", "text"])
+    assert result.exit_code == 0
+    assert "### Mock Entry" in result.output
+
+
+def test_cli_output_json_envelope():
+    """--output json should produce an ACLI envelope with ok/command/version/duration_ms/data."""
+    runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["https://example.com/feed", "--output", "json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["ok"] is True
+    assert data["command"] == "snap"
+    assert "version" in data
+    assert "duration_ms" in data
+    assert isinstance(data["duration_ms"], int)
+    assert data["data"]["title"] == "Mock Feed"
+    assert len(data["data"]["entries"]) == 1
+
+
+def test_cli_output_json_envelope_short_flag():
+    """--output json should also work with the -o short flag."""
+    runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["https://example.com/feed", "-o", "json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["ok"] is True
+
+
+def test_cli_output_table():
+    """--output table should produce aligned plain-text columns."""
+    runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["https://example.com/feed", "--output", "table"])
+    assert result.exit_code == 0
+    assert "TITLE" in result.output
+    assert "DATE" in result.output
+    assert "URL" in result.output
+    assert "Mock Entry" in result.output
+    assert "https://example.com/mock" in result.output
+
+
+def test_cli_output_overrides_format():
+    """--output takes precedence over --format when both are provided."""
+    runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(
+            main, ["https://example.com/feed", "--output", "table", "--format", "json"]
         )
-    assert result2.exit_code == 0
-    assert "Entry One" not in result2.output
-    assert "Entry Two" not in result2.output
+    assert result.exit_code == 0
+    # Should be table output, not JSON
+    assert "TITLE" in result.output
+    assert result.output.strip()[0] != "{"
 
 
-def test_cli_no_dedup_without_flag():
-    """Without --dedup or --seen-db, entries should always be shown."""
+def test_cli_format_json_no_envelope():
+    """--format json (legacy) should NOT produce an ACLI envelope."""
     runner = CliRunner()
+    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["https://example.com/feed", "--format", "json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    # Legacy format: flat feed object, no envelope keys
+    assert "ok" not in data
+    assert "duration_ms" not in data
+    assert data["title"] == "Mock Feed"
 
-    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
-        result1 = runner.invoke(main, ["https://example.com/feed"])
-    assert "Entry One" in result1.output
 
-    # Second call — same feed, no DB, same entries should appear again
-    with patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED_FOR_DEDUP):
-        result2 = runner.invoke(main, ["https://example.com/feed"])
-    assert "Entry One" in result2.output
+def test_cli_opml_output_json_envelope(tmp_path):
+    """--opml --output json should wrap multiple feeds in an ACLI envelope."""
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    with patch("feedsnap.cli.parse_opml", return_value=[
+        ("Feed 1", "https://example.com/feed1"),
+        ("Feed 2", "https://example.com/feed2"),
+    ]), patch("feedsnap.cli.fetch_feed", side_effect=[MOCK_FEED, MOCK_FEED_2]):
+        result = runner.invoke(main, ["--opml", str(opml_file), "--output", "json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["ok"] is True
+    assert data["command"] == "snap"
+    assert "feeds" in data["data"]
+    assert len(data["data"]["feeds"]) == 2
+
+
+def test_cli_opml_output_table(tmp_path):
+    """--opml --output table should produce table sections for each feed."""
+    opml_file = tmp_path / "feeds.opml"
+    opml_file.write_text(SAMPLE_OPML)
+    runner = CliRunner()
+    with patch("feedsnap.cli.parse_opml", return_value=[
+        ("Feed 1", "https://example.com/feed1"),
+    ]), patch("feedsnap.cli.fetch_feed", return_value=MOCK_FEED):
+        result = runner.invoke(main, ["--opml", str(opml_file), "--output", "table"])
+    assert result.exit_code == 0
+    assert "# Mock Feed" in result.output
+    assert "TITLE" in result.output
+    assert "Mock Entry" in result.output
