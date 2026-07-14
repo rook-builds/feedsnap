@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -9,7 +10,14 @@ import click
 
 from . import __version__
 from .fetcher import Feed, fetch_feed, parse_opml
-from .formatter import to_json, to_json_multi, to_markdown
+from .formatter import (
+    to_envelope,
+    to_envelope_multi,
+    to_json,
+    to_json_multi,
+    to_markdown,
+    to_table,
+)
 from .introspect import get_introspect_json, get_skill_md
 from .seen_db import default_db_path, get_seen, mark_seen
 
@@ -76,6 +84,27 @@ def _apply_dedup(db_path: Path, feed_url: str, feed: Feed) -> Feed:
     return Feed(title=feed.title, url=feed.url, entries=new_entries)
 
 
+def _effective_output(output: str | None, fmt: str | None) -> str:
+    """Resolve the canonical output mode from --output and --format.
+
+    ``--output`` takes precedence when both are given. ``--format`` is the
+    deprecated backward-compat flag.
+
+    Returns one of: ``"text"`` | ``"json"`` | ``"table"`` | ``"legacy_json"``.
+
+    - ``"text"``        — markdown output (same as before v0.6)
+    - ``"json"``        — ACLI envelope (new in v0.6, via ``--output json``)
+    - ``"table"``       — aligned plain-text table (new in v0.6)
+    - ``"legacy_json"`` — old non-envelope JSON (``--format json`` compat)
+    """
+    if output is not None:
+        return output
+    if fmt == "json":
+        return "legacy_json"
+    # fmt is None or "markdown" — default to markdown/text output
+    return "text"
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -97,11 +126,20 @@ def _apply_dedup(db_path: Path, feed_url: str, feed: Feed) -> Feed:
     help="Max entries to return (per feed in OPML mode).",
 )
 @click.option(
+    "--output", "-o",
+    default=None,
+    type=click.Choice(["text", "json", "table"]),
+    help=(
+        "Output mode: 'text' (markdown, default), 'json' (ACLI envelope), "
+        "or 'table' (aligned plain-text columns)."
+    ),
+)
+@click.option(
     "--format", "-f", "fmt",
-    default="markdown",
-    show_default=True,
+    default=None,
     type=click.Choice(["markdown", "json"]),
-    help="Output format.",
+    hidden=True,  # deprecated in v0.6 — use --output instead
+    help="Deprecated: use --output instead.",
 )
 @click.option(
     "--title",
@@ -145,7 +183,8 @@ def main(
     url: str | None,
     opml_file: str | None,
     limit: int,
-    fmt: str,
+    output: str | None,
+    fmt: str | None,
     title: bool,
     since: str | None,
     dedup: bool,
@@ -191,8 +230,12 @@ def main(
     # Resolve dedup DB path (None = dedup disabled)
     db_path = _resolve_db_path(dedup, seen_db)
 
+    # Resolve effective output mode
+    out_mode = _effective_output(output, fmt)
+
     # ── Single-feed mode ─────────────────────────────────────────────────────
     if url:
+        t0 = time.monotonic()
         try:
             feed = fetch_feed(url, limit=limit, since=since_date)
         except Exception as e:
@@ -202,9 +245,15 @@ def main(
         if db_path is not None:
             feed = _apply_dedup(db_path, url, feed)
 
-        if fmt == "json":
+        duration_ms = round((time.monotonic() - t0) * 1000)
+
+        if out_mode == "json":
+            click.echo(to_envelope(feed, duration_ms), nl=False)
+        elif out_mode == "table":
+            click.echo(to_table(feed, show_title=title), nl=False)
+        elif out_mode == "legacy_json":
             click.echo(to_json(feed), nl=False)
-        else:
+        else:  # "text" (default)
             click.echo(to_markdown(feed, show_title=title), nl=False)
         return
 
@@ -224,6 +273,7 @@ def main(
         click.echo("Error: No feed URLs found in OPML file.", err=True)
         sys.exit(1)
 
+    t0 = time.monotonic()
     feeds = []
     for _feed_title, feed_url in feed_specs:
         try:
@@ -241,9 +291,15 @@ def main(
         click.echo("Error: No feeds could be fetched.", err=True)
         sys.exit(1)
 
-    if fmt == "json":
+    duration_ms = round((time.monotonic() - t0) * 1000)
+
+    if out_mode == "json":
+        click.echo(to_envelope_multi(feeds, duration_ms), nl=False)
+    elif out_mode == "table":
+        parts = [to_table(feed, show_title=True) for feed in feeds]
+        click.echo("\n".join(parts), nl=False)
+    elif out_mode == "legacy_json":
         click.echo(to_json_multi(feeds), nl=False)
-    else:
-        # In OPML mode, always show title headers (ignore --title flag)
+    else:  # "text" (default)
         parts = [to_markdown(feed, show_title=True) for feed in feeds]
         click.echo("\n".join(parts), nl=False)
