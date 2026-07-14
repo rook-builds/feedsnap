@@ -1,6 +1,6 @@
 {
   "name": "feedsnap",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "acli_version": "0.1.0",
   "commands": [
     {
@@ -31,12 +31,23 @@
           "description": "Maximum entries to return. In OPML mode this limit applies per-feed, not across all feeds."
         },
         {
+          "name": "--output",
+          "short": "-o",
+          "type": "enum[text|json|table]",
+          "required": false,
+          "default": "text",
+          "description": "Output mode. 'text' emits markdown (human-readable, LLM-friendly); 'json' emits an ACLI-compliant envelope ({ ok, command, version, duration_ms, data }); 'table' emits aligned plain-text columns (TITLE | DATE | URL). Replaces the deprecated --format flag.",
+          "since_version": "0.6.0"
+        },
+        {
           "name": "--format",
           "short": "-f",
           "type": "enum[markdown|json]",
           "required": false,
           "default": "markdown",
-          "description": "Output format. 'markdown' for human reading or LLM context; 'json' for piping to jq or other tools."
+          "deprecated": true,
+          "deprecated_since": "0.6.0",
+          "description": "Deprecated since v0.6.0. Use --output instead. Still accepted: 'markdown' maps to --output text, 'json' maps to legacy JSON output (no ACLI envelope)."
         },
         {
           "name": "--title",
@@ -75,8 +86,12 @@
           "command": "feedsnap https://lobste.rs/rss"
         },
         {
-          "intent": "Limit to 5 entries and output JSON",
-          "command": "feedsnap https://lobste.rs/rss --limit 5 --format json"
+          "intent": "Limit to 5 entries and output ACLI JSON envelope",
+          "command": "feedsnap https://lobste.rs/rss --limit 5 --output json"
+        },
+        {
+          "intent": "Tabular output (title, date, URL)",
+          "command": "feedsnap https://lobste.rs/rss --output table"
         },
         {
           "intent": "Only show entries from the last 2 days",
