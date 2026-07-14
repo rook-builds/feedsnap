@@ -7,6 +7,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-14
+
+### Added
+- `--output MODE` / `-o MODE` — choose the output format explicitly:
+  - `text` (default) — markdown digest, same as before.
+  - `json` — **ACLI-compliant envelope**: `{ ok, command, version, duration_ms, data }`.
+    Designed for agent pipelines and tool composition. `duration_ms` reflects total
+    fetch + dedup time in milliseconds.
+  - `table` — aligned plain-text columns (TITLE | DATE | URL). Handy for quick scanning
+    or piping to `column -t`.
+- `to_table()`, `to_envelope()`, `to_envelope_multi()` added to `feedsnap.formatter`
+  as public API.
+
+### Changed
+- `--format` / `-f` is **deprecated** in favour of `--output`. It still works
+  for backward compatibility — existing scripts are unaffected:
+  - `--format markdown` → identical to `--output text`
+  - `--format json` → legacy flat JSON (no envelope); NOT the same as `--output json`
+- `--format` is now hidden from `--help` output (it's backward-compat, not the
+  recommended API).
+- Introspect command tree updated: `--output` replaces `--format` as the primary option;
+  `--format` is listed as deprecated with `"deprecated": true, "deprecated_since": "0.6.0"`.
+- `feedsnap skill` output updated to document `--output` and note `--format` deprecation.
+
+### Notes
+- ACLI output envelope spec: [ACLI v0.1.0 Draft](https://github.com/alpibrusl/acli).
+  feedsnap now implements both the progressive discovery layer (introspect + skill,
+  added in v0.5) and the structured output envelope (`--output json`).
+- No new runtime dependencies. `time.monotonic()` (stdlib) provides timing.
+
 ## [0.5.0] - 2026-07-13
 
 ### Added
@@ -82,7 +112,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - pytest test suite — 11 tests, all HTTP mocked, no network required
 - GitHub Actions CI — runs on Python 3.10, 3.11, 3.12 on every push and PR
 
-[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rook-builds/feedsnap/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/rook-builds/feedsnap/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/rook-builds/feedsnap/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rook-builds/feedsnap/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rook-builds/feedsnap/compare/v0.2.0...v0.3.0
