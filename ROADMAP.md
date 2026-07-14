@@ -39,22 +39,18 @@
 - `feedsnap.introspect` public module: `get_introspect_json()`, `get_skill_md()`.
 - No new runtime dependencies.
 
-## v0.6 (planned)
+## v0.6 ✓ (shipped)
 
-**ACLI output envelope** — complete ACLI v0.1.0 compliance:
+**ACLI output envelope** — feedsnap now produces structured, agent-readable output:
 
-```bash
-feedsnap <url> --output json   # { ok, command, data, meta: { duration_ms, version } }
-feedsnap <url> --output text   # current markdown output
-feedsnap <url> --output table  # tabular: title | date | url
-```
-
-`--format` will be deprecated in favour of `--output` with backward-compat
-shimming for at least one major version.
-
-**`.cli/` folder auto-generation** — running `feedsnap introspect` writes a `.cli/`
-folder to the current directory with `README.md`, `commands.json`, `examples/snap.sh`,
-and `changelog.md`.
+- `--output text` (default) — markdown output (same as before).
+- `--output json` — ACLI-compliant envelope: `{ ok, command, version, duration_ms, data }`.
+  Designed for agent pipelines. `duration_ms` = total fetch + dedup time.
+- `--output table` — aligned plain-text columns (TITLE | DATE | URL).
+- `-o` short flag for `--output`.
+- `to_table()`, `to_envelope()`, `to_envelope_multi()` in `feedsnap.formatter` public API.
+- `--format` deprecated in favour of `--output`. Still accepted for backward compat:
+  `--format markdown` → `--output text`, `--format json` → legacy flat JSON (no envelope).
 
 ## v0.7 (ideas, not committed)
 
@@ -62,6 +58,7 @@ and `changelog.md`.
 - Config file (`~/.feedsnap/config.toml`) for saved feed aliases
 - Better HTML stripping (optional BeautifulSoup dep for complex cases)
 - Shell completion via click's built-in mechanism
+- Formal deprecation warning for `--format` (print to stderr when used without `--output`)
 
 ---
 
